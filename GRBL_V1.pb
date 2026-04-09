@@ -492,23 +492,51 @@ Procedure SaveLogFile()
   EndIf
 EndProcedure
 
-Procedure COMGetAvailablePorts(List Ports.s())
-  ClearList(Ports())
+; infratec add for linux mac...
+Procedure COMGetAvailablePorts()
+  Protected NewList COMPortNameList.s()
+  Protected i.i, Directory.i, Com.i
+  
   CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-    Protected i.i, h.i, p.s
-    For i = 1 To 256
-      p = "COM" + Str(i)
-      h = OpenSerialPort(#PB_Any, p, 115200, #PB_SerialPort_NoParity, 8, 1,
-                         #PB_SerialPort_NoHandshake, 512, 512)  ; larger buffers
-      If h
-        AddElement(Ports()) : Ports() = p
-        CloseSerialPort(h)
-      EndIf
-    Next
-  CompilerElse
-    ; Linux/Mac code unchanged
+    For i = 1 To #COMMaxPorts
+      AddElement(COMPortNameList())
+      COMPortNameList() = "COM" + Str(i)
+    Next i
   CompilerEndIf
+  
+  CompilerIf #PB_Compiler_OS = #PB_OS_Linux
+    Directory = ExamineDirectory(#PB_Any, "/dev", "ttyUSB*")
+    If Directory
+      While NextDirectoryEntry(Directory)
+        AddElement(COMPortNameList())
+        COMPortNameList() = "/dev/" + DirectoryEntryName(Directory)
+      Wend
+      FinishDirectory(Directory)
+    EndIf
+  CompilerEndIf
+  
+  CompilerIf #PB_Compiler_OS = #PB_OS_MacOS
+    Directory = ExamineDirectory(#PB_Any, "/dev", "tty.usbserial*")
+    If Directory
+      While NextDirectoryEntry(Directory)
+        AddElement(COMPortNameList())
+        COMPortNameList() = "/dev/" + DirectoryEntryName(Directory)
+      Wend
+      FinishDirectory(Directory)
+    EndIf
+  CompilerEndIf
+  
+  ForEach COMPortNameList()
+    Com = OpenSerialPort(#PB_Any, COMPortNameList(), 9600, #PB_SerialPort_NoParity, 8, 1, #PB_SerialPort_NoHandshake, 1, 1)
+    If Com
+      AddElement(COMUsablePorts())
+      COMUsablePorts() = COMPortNameList()
+      CloseSerialPort(Com)
+    EndIf
+  Next
+  FreeList(COMPortNameList())  
 EndProcedure
+
 
 ; PortScanThread, ScanPortsForGRBL, RefreshPorts, DrawPortStatus remain the same
 Procedure PortScanThread(Param.i)
